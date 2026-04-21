@@ -92,11 +92,14 @@ lgr2SCRAPI <- function(input,
   }
 
   # ---- derive fwAge for steelhead ------------------------------------------
-  # BioScaleFinalAge uses the format "fw.sw" (e.g. "2.1" = 2 freshwater years,
-  # 1 saltwater year). fwAge is the integer portion before the first ".".
+  # BioScaleFinalAge uses the format "fw:sw" (e.g. "2:0" = 2 freshwater years,
+  # 0 saltwater years). fwAge is the integer portion before the ":".
+  # "N:A" is the database missing-value code -> NA.
   if (species == "sthd" && "BioScaleFinalAge" %in% names(dat)) {
+    age_raw <- as.character(dat$BioScaleFinalAge)
+    age_raw[age_raw %in% c("N:A", "NA", "")] <- NA
     dat$fwAge <- suppressWarnings(
-      as.integer(sub("\\..*$", "", as.character(dat$BioScaleFinalAge)))
+      as.integer(sub(":.*$", "", age_raw))
     )
   }
 
