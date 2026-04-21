@@ -7,8 +7,16 @@
 #'   detected at GRJ or GRS during each stratum period. A spill covariate is
 #'   attached by joining \code{spill_weekly} to strata by overlapping date ranges.
 #'
-#' @param dat_up data frame of PIT tag detections. Required columns: \code{tag}
-#'   (character), \code{site} (character site code), \code{det_date} (Date).
+#' @param dat_up data frame of PIT tag detections as returned by
+#'   \code{\link{prep_pit_data}}. Required columns: \code{tag} (character),
+#'   \code{site} (character site code), \code{det_date} (Date). Optional column
+#'   \code{mark_rkm} (numeric) is used with \code{min_mark_rkm} to restrict
+#'   Pool A to upstream-tagged fish without affecting Pool B.
+#' @param min_mark_rkm numeric. Restrict Pool A (psi estimation) to fish with
+#'   \code{mark_rkm} strictly greater than this value (e.g. \code{695} for
+#'   LGR). Pool B (n_GRJ_obs, n_GRS_obs) always uses all fish — fish tagged
+#'   downstream legitimately pass through LGR and are correctly counted there.
+#'   Default \code{695}.
 #' @param strat_assign data frame mapping weeks to strata. Accepts two formats:
 #'   \itemize{
 #'     \item \strong{Week/Collapse format} (preferred): columns \code{Week}
@@ -36,11 +44,24 @@ prep_ge_data <- function(dat_up,
                          strat_assign,
                          spill_data,
                          species,
+                         min_mark_rkm     = 695,
                          downstream_sites = c("GOJ","LMJ","MCJ","JDJ",
                                               "B2J","BCC","TWX",
                                               "PD5","PD6","PD7","PD8","PDW")) {
 
   species <- match.arg(species, c("chnk", "sthd"))
+
+  # Pool A uses only upstream-tagged fish; Pool B uses all fish.
+  # Apply RKM filter only to the Pool A data frame.
+  if (!is.null(min_mark_rkm) && "mark_rkm" %in% names(dat_up)) {
+    dat_pool_a <- dat_up[!is.na(dat_up$mark_rkm) & dat_up$mark_rkm > min_mark_rkm, ]
+    n_removed  <- length(unique(dat_up$tag)) - length(unique(dat_pool_a$tag))
+    message("Pool A RKM filter (mark_rkm > ", min_mark_rkm, "): ",
+            n_removed, " tags excluded from psi pool, ",
+            length(unique(dat_pool_a$tag)), " retained.")
+  } else {
+    dat_pool_a <- dat_up
+  }
 
   # --- Normalise strat_assign to date/stratum/stratum_idx format ---
   # Accept Week/Collapse tibble (e.g. from the user's strata table) and expand
@@ -67,17 +88,17 @@ prep_ge_data <- function(dat_up,
     )[, c("date", "stratum", "stratum_idx")]
   }
 
-  # --- Pool A: psi estimation pool ---
+  # --- Pool A: psi estimation pool (upstream-tagged fish only) ---
   # Each upstream-tagged fish is classified by its first LGR route (GRS or UND).
   # GRJ fish are excluded — they never entered the spillway, so they cannot inform
   # psi (P(detected at GRS | passed through spillway)).
-  down_first <- dat_up %>%
+  down_first <- dat_pool_a %>%
     filter(site %in% downstream_sites) %>%
     arrange(tag, det_date) %>%
     group_by(tag) %>% slice(1) %>% ungroup() %>%
     transmute(tag, down_date = det_date)
 
-  lgr_first <- dat_up %>%
+  lgr_first <- dat_pool_a %>%
     filter(site %in% c("GRJ", "GRS")) %>%
     arrange(tag, det_date) %>%
     group_by(tag) %>% slice(1) %>% ungroup() %>%
