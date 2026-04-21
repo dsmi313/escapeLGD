@@ -9,9 +9,14 @@
 #'
 #' @param dat_up data frame of PIT tag detections. Required columns: \code{tag}
 #'   (character), \code{site} (character site code), \code{det_date} (Date).
-#' @param strat_assign data frame mapping each calendar date to a trap stratum.
-#'   Required columns: \code{date} (Date), \code{stratum} (character or integer),
-#'   \code{stratum_idx} (integer, 1-based, must increase monotonically).
+#' @param strat_assign data frame mapping weeks to strata. Accepts two formats:
+#'   \itemize{
+#'     \item \strong{Week/Collapse format} (preferred): columns \code{Week}
+#'       (integer ISO week number) and \code{Collapse} (integer stratum ID).
+#'       Dates are derived from ISO week numbers of detections in \code{dat_up}.
+#'     \item \strong{Date format}: columns \code{date} (Date), \code{stratum},
+#'       and \code{stratum_idx} (integer, 1-based, monotonically increasing).
+#'   }
 #' @param spill_data data frame of daily spill values. Required columns:
 #'   \code{Date} (Date or character) and \code{spill.per} (spill in raw units,
 #'   e.g. kcfs). Rows are joined to strata by date and averaged within each stratum.
@@ -36,6 +41,31 @@ prep_ge_data <- function(dat_up,
                                               "PD5","PD6","PD7","PD8","PDW")) {
 
   species <- match.arg(species, c("chnk", "sthd"))
+
+  # --- Normalise strat_assign to date/stratum/stratum_idx format ---
+  # Accept Week/Collapse tibble (e.g. from the user's strata table) and expand
+  # to one row per calendar date using ISO week numbers from dat_up + spill_data.
+  if (all(c("Week", "Collapse") %in% names(strat_assign)) &&
+      !("date" %in% names(strat_assign))) {
+
+    all_dates <- sort(unique(c(
+      as.Date(dat_up$det_date),
+      as.Date(spill_data$Date)
+    )))
+    wk_num <- as.integer(format(all_dates, "%V"))   # ISO week
+
+    week_to_strat <- strat_assign
+    names(week_to_strat)[names(week_to_strat) == "Collapse"] <- "stratum"
+    week_to_strat$stratum_idx <- as.integer(
+      factor(week_to_strat$stratum, levels = sort(unique(week_to_strat$stratum)))
+    )
+
+    strat_assign <- merge(
+      data.frame(date = all_dates, Week = wk_num),
+      week_to_strat,
+      by = "Week", all.x = FALSE
+    )[, c("date", "stratum", "stratum_idx")]
+  }
 
   # --- Pool A: psi estimation pool ---
   # Each upstream-tagged fish is classified by its first LGR route (GRS or UND).
