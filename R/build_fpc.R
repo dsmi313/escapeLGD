@@ -188,9 +188,13 @@ genstock_by_week <- function(trap, rear_only = "W") {
   if (!is.null(rear_only) && "Rear" %in% names(df))
     df <- df[!is.na(df$Rear) & df$Rear == rear_only, ]
 
-  counts <- table(df$WeekNumber, df$GenStock)
-  out    <- as.data.frame.matrix(counts)
-  out    <- cbind(Week = as.integer(rownames(out)), out)
+  counts  <- table(df$WeekNumber, df$GenStock)
+  mat     <- as.data.frame.matrix(counts)
+  total   <- as.data.frame(t(colSums(mat)))
+  total   <- cbind(Week = NA_integer_, total)
+  out     <- cbind(Week = as.integer(rownames(mat)), mat)
   rownames(out) <- NULL
+  out     <- rbind(out, total)
+  row.names(out)[nrow(out)] <- "Total"
   out
 }
