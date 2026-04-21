@@ -12,8 +12,9 @@
 #' @param strat_assign data frame mapping each calendar date to a trap stratum.
 #'   Required columns: \code{date} (Date), \code{stratum} (character or integer),
 #'   \code{stratum_idx} (integer, 1-based, must increase monotonically).
-#' @param spill_weekly data frame of weekly spill values. Required columns:
-#'   \code{week_start} (Date) and \code{spill.per} (spill in raw units, e.g. kcfs).
+#' @param spill_data data frame of daily spill values. Required columns:
+#'   \code{Date} (Date or character) and \code{spill.per} (spill in raw units,
+#'   e.g. kcfs). Rows are joined to strata by date and averaged within each stratum.
 #' @param downstream_sites character vector of site codes at downstream detection
 #'   sites used to identify fish that have passed through LGR.
 #'
@@ -23,11 +24,11 @@
 #'
 #' @importFrom dplyr filter arrange group_by slice ungroup transmute left_join
 #'   mutate case_when full_join summarise distinct count rename across
-#' @importFrom tidyr pivot_wider replace_na crossing
+#' @importFrom tidyr pivot_wider replace_na
 #' @export
 prep_ge_data <- function(dat_up,
                          strat_assign,
-                         spill_weekly,
+                         spill_data,
                          downstream_sites = c("GOJ","LMJ","MCJ","JDJ",
                                               "B2J","BCC","TWX",
                                               "PD5","PD6","PD7","PD8","PDW")) {
@@ -81,16 +82,13 @@ prep_ge_data <- function(dat_up,
   if (!"GRS" %in% names(lgr_counts)) lgr_counts$GRS <- 0L
   lgr_counts <- rename(lgr_counts, n_GRJ_obs = GRJ, n_GRS_obs = GRS)
 
-  # --- Spill covariate: mean spill.per for calendar weeks overlapping each stratum ---
-  strat_dates <- strat_assign %>%
-    group_by(stratum) %>%
-    summarise(s_min = min(date), s_max = max(date), .groups = "drop")
+  # --- Spill covariate: mean daily spill.per within each stratum ---
+  # spill_data must have a Date column (Date or character) and spill.per
+  spill_df <- spill_data
+  spill_df$Date <- as.Date(spill_df$Date)
 
-  spill_strat <- crossing(
-      strat_dates,
-      mutate(spill_weekly, week_end = week_start + 6)
-    ) %>%
-    filter(week_start <= s_max, week_end >= s_min) %>%
+  spill_strat <- strat_assign %>%
+    left_join(spill_df[, c("Date", "spill.per")], by = c("date" = "Date")) %>%
     group_by(stratum) %>%
     summarise(spill_val = mean(spill.per, na.rm = TRUE), .groups = "drop") %>%
     mutate(spill_val = replace_na(spill_val, 0))
