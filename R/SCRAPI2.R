@@ -58,6 +58,13 @@
 #'         B           = 2000)
 #' }
 #'
+#' @param strata optional data frame supplying the week-to-stratum collapse
+#'   mapping directly, so the \code{Collapse} column does not need to be
+#'   pre-baked into \code{passageData}. Must have exactly two columns: the first
+#'   matching the \code{strat} column (e.g. \code{Week}), the second giving the
+#'   stratum integer (e.g. \code{Collapse}). When supplied this overrides any
+#'   existing \code{Collapse} column in \code{passageData}. Default \code{NULL}.
+#'
 #' @importFrom stats rbinom quantile plogis
 #' @export
 
@@ -69,11 +76,21 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
                     REARSTRAT = TRUE, alph = 0.1, B = 2000,
                     dateFormat = "%m/%d/%Y",
                     gsiDraws = NULL, fishID = "MasterID", n_point = 100,
-                    geDraws = NULL)
+                    geDraws = NULL, strata = NULL)
 {
   # ---- import data -------------------------------------------------------
   if(is.character(smoltData))   { All  <- read.csv(smoltData,  header = TRUE) } else { All  <- smoltData  }
   if(is.character(passageData)) { pass <- read.csv(passageData, header = TRUE) } else { pass <- passageData }
+
+  # ---- apply strata mapping if supplied ----------------------------------
+  if (!is.null(strata)) {
+    if (ncol(strata) != 2)
+      stop("'strata' must be a two-column data frame: Week (or equivalent) and Collapse")
+    pass[[collaps]] <- strata[[2L]][match(pass[[strat]], strata[[1L]])]
+    if (anyNA(pass[[collaps]]))
+      warning("Some weeks in passageData have no matching row in 'strata'; ",
+              "those rows will have NA stratum and be excluded.")
+  }
 
   # ---- validate new parameters -------------------------------------------
   if(!is.null(gsiDraws)) {
