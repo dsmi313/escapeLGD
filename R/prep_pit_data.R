@@ -25,6 +25,11 @@
 #'   in \code{Event.Life.Stage.Value}, used to identify fish tagged as juveniles
 #'   upstream. E.g. \code{"Juvenile"} or \code{"Parr"}. Set to \code{NULL} to
 #'   keep all tags regardless of life stage at marking. Default \code{NULL}.
+#' @param min_mark_rkm numeric. Keep only fish tagged at a site with
+#'   \code{Mark.Site.RKM.Total} strictly greater than this value. Use to
+#'   restrict to fish tagged upstream of a dam (e.g. \code{695} for LGR).
+#'   Default \code{NULL} (no filter). \strong{This filter is critical} — fish
+#'   tagged at or below LGR inflate the UND count and bias psi downward.
 #' @param event_types character vector of \code{Event.Type.Name} values to
 #'   retain. Default \code{c("Mark", "Observation")} — both are needed so
 #'   downstream code can reconstruct each fish's LGR route.
@@ -44,18 +49,20 @@
 #'
 #' @examples
 #' \dontrun{
-#' dat_up <- prep_pit_data(MY25.pit, species = "Steelhead", mig_year = 2025)
-#' ge_data <- prep_ge_data(dat_up, strat_assign = strat_assign,
-#'                          spill_weekly = spill_weekly)
+#' dat_up <- prep_pit_data(MY25.pit, species = "Steelhead",
+#'                          mig_year = 2025, min_mark_rkm = 695)
+#' ge_data <- prep_ge_data(dat_up, strat_assign = sthd_strata,
+#'                          spill_data = spill, species = "sthd")
 #' }
 #'
 #' @export
 prep_pit_data <- function(pit,
-                           species    = "Steelhead",
-                           mig_year   = NULL,
-                           rear_type  = "Wild Fish or Natural Production",
-                           life_stage = NULL,
-                           event_types = c("Mark", "Observation")) {
+                           species      = "Steelhead",
+                           mig_year     = NULL,
+                           rear_type    = "Wild Fish or Natural Production",
+                           min_mark_rkm = NULL,
+                           life_stage   = NULL,
+                           event_types  = c("Mark", "Observation")) {
 
   dat <- pit
 
@@ -71,6 +78,11 @@ prep_pit_data <- function(pit,
   if (!is.null(rear_type) && "Mark.Rear.Type.Name" %in% names(dat))
     dat <- dat[!is.na(dat$Mark.Rear.Type.Name) &
                dat$Mark.Rear.Type.Name == rear_type, ]
+
+  if (!is.null(min_mark_rkm) && "Mark.Site.RKM.Total" %in% names(dat)) {
+    rkm <- suppressWarnings(as.numeric(dat$Mark.Site.RKM.Total))
+    dat <- dat[!is.na(rkm) & rkm > min_mark_rkm, ]
+  }
 
   if (!is.null(life_stage) && "Event.Life.Stage.Value" %in% names(dat)) {
     # apply life stage filter only to Mark events; keep all Observations
