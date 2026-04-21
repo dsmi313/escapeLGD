@@ -15,6 +15,7 @@
 #' @param spill_data data frame of daily spill values. Required columns:
 #'   \code{Date} (Date or character) and \code{spill.per} (spill in raw units,
 #'   e.g. kcfs). Rows are joined to strata by date and averaged within each stratum.
+#' @param species one of \code{"chnk"} or \code{"sthd"}.
 #' @param downstream_sites character vector of site codes at downstream detection
 #'   sites used to identify fish that have passed through LGR.
 #'
@@ -29,9 +30,12 @@
 prep_ge_data <- function(dat_up,
                          strat_assign,
                          spill_data,
+                         species,
                          downstream_sites = c("GOJ","LMJ","MCJ","JDJ",
                                               "B2J","BCC","TWX",
                                               "PD5","PD6","PD7","PD8","PDW")) {
+
+  species <- match.arg(species, c("chnk", "sthd"))
 
   # --- Pool A: psi estimation pool ---
   # Each upstream-tagged fish is classified by its first LGR route (GRS or UND).
