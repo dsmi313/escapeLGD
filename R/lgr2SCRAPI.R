@@ -105,15 +105,21 @@ lgr2SCRAPI <- function(input,
     LOWSALM = "LOSALM",
     LOWCLWR = "LOCLWR",
     LOWGRAN = "LOGRAN",
-    LOWSNAK = "LOSNAK"
+    LOWSNAK = "LOSNAK",
+    NG      = "NA"       # no-genetics fish excluded by SCRAPI (Primary != "NA")
   )
+
+  # Known valid codes that are legitimately != 6 characters
+  length_exempt <- c("FALL")
 
   if ("GenStock" %in% names(dat)) {
     bad <- dat$GenStock %in% names(corrections)
     if (any(bad, na.rm = TRUE))
       dat$GenStock[bad] <- corrections[dat$GenStock[bad]]
 
-    non_na  <- dat$GenStock[!is.na(dat$GenStock) & dat$GenStock != "NA"]
+    non_na  <- dat$GenStock[!is.na(dat$GenStock) &
+                             dat$GenStock != "NA" &
+                             !dat$GenStock %in% length_exempt]
     bad_len <- unique(non_na[nchar(non_na) != 6])
     if (length(bad_len) > 0)
       warning("GenStock codes with length != 6 after correction: ",
