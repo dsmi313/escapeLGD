@@ -7,8 +7,8 @@
 #'
 #'   Key transformations applied:
 #'   \itemize{
-#'     \item \code{Rear} is created from \code{GenRear} (the genetic rear-type
-#'       assignment used by SCRAPI to identify wild vs HNC fish).
+#'     \item \code{Rear} is created from \code{LGDRear} (W / H; used by SCRAPI
+#'       to filter to wild fish via \code{RTYPE = "W"}).
 #'     \item \code{MPG} is populated from \code{CHNMPG} (chinook) or
 #'       \code{STHDMPG} (steelhead).
 #'     \item For steelhead, \code{fwAge} is derived as the integer freshwater
@@ -80,10 +80,9 @@ lgr2SCRAPI <- function(input,
     dat <- as.data.frame(input, stringsAsFactors = FALSE)
   }
 
-  # ---- derive Rear from GenRear --------------------------------------------
-  # GenRear is the genetic rear-type assignment (W / HNC); SCRAPI filters on
-  # this column via the Rr= and RTYPE= parameters.
-  dat$Rear <- dat$GenRear
+  # ---- derive Rear from LGDRear --------------------------------------------
+  # LGDRear has clean W / H values; SCRAPI filters on this via RTYPE= ("W").
+  dat$Rear <- dat$LGDRear
 
   # ---- derive MPG from species-specific column -----------------------------
   if (species == "chnk" && "CHNMPG" %in% names(dat)) {
