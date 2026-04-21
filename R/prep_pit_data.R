@@ -83,9 +83,15 @@ prep_pit_data <- function(pit,
     rkm_col <- intersect(c("Mark.Site.RKM.Total", "Mark.Site.RKM.Value",
                             "Mark Site RKM Total", "Mark Site RKM Value"),
                          names(dat))[1]
-    if (!is.na(rkm_col)) {
-      rkm <- suppressWarnings(as.numeric(dat[[rkm_col]]))
-      dat <- dat[!is.na(rkm) & rkm > min_mark_rkm, ]
+    if (is.na(rkm_col)) {
+      warning("min_mark_rkm specified but no RKM column found in data — filter skipped.")
+    } else {
+      n_before <- length(unique(dat$Tag.Code))
+      rkm      <- suppressWarnings(as.numeric(dat[[rkm_col]]))
+      dat      <- dat[!is.na(rkm) & rkm > min_mark_rkm, ]
+      n_after  <- length(unique(dat$Tag.Code))
+      message("RKM filter (", rkm_col, " > ", min_mark_rkm, "): ",
+              n_before - n_after, " tags removed, ", n_after, " retained.")
     }
   }
 
