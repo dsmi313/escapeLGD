@@ -79,9 +79,14 @@ prep_pit_data <- function(pit,
     dat <- dat[!is.na(dat$Mark.Rear.Type.Name) &
                dat$Mark.Rear.Type.Name == rear_type, ]
 
-  if (!is.null(min_mark_rkm) && "Mark.Site.RKM.Total" %in% names(dat)) {
-    rkm <- suppressWarnings(as.numeric(dat$Mark.Site.RKM.Total))
-    dat <- dat[!is.na(rkm) & rkm > min_mark_rkm, ]
+  if (!is.null(min_mark_rkm)) {
+    rkm_col <- intersect(c("Mark.Site.RKM.Total", "Mark.Site.RKM.Value",
+                            "Mark Site RKM Total", "Mark Site RKM Value"),
+                         names(dat))[1]
+    if (!is.na(rkm_col)) {
+      rkm <- suppressWarnings(as.numeric(dat[[rkm_col]]))
+      dat <- dat[!is.na(rkm) & rkm > min_mark_rkm, ]
+    }
   }
 
   if (!is.null(life_stage) && "Event.Life.Stage.Value" %in% names(dat)) {
