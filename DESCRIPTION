@@ -17,7 +17,9 @@ Suggests:
     knitr,
     rmarkdown,
     lubridate,
-    coda
+    coda,
+    DBI,
+    odbc
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
