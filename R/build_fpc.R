@@ -167,34 +167,44 @@ check_date_alignment <- function(fpc, trap, label = "") {
 }
 
 
-#' @title Tabulate GenStock composition by week
+#' @title Tabulate GenStock by week with a usable-fish total column
 #'
 #' @description Returns a wide table of fish counts by \code{WeekNumber} and
-#'   \code{GenStock}, useful for visually deciding where to set stratum
-#'   boundaries before passing a \code{strata} data frame to
-#'   \code{\link{SCRAPI2}}.
+#'   \code{GenStock}, with a \code{Total} column showing the number of fish
+#'   usable for SCRAPI2 composition estimation in each week. For steelhead
+#'   that means GenStock \strong{and} \code{fwAge} are both present; for
+#'   Chinook it means GenStock is present.
 #'
 #' @param trap data frame returned by \code{\link{lgr2SCRAPI}}.
-#' @param rear_only character. If non-\code{NULL}, filter to this rear type
-#'   before tabulating (e.g. \code{"W"} for wild fish only). Default \code{"W"}.
+#' @param species one of \code{"chnk"} or \code{"sthd"}.
+#' @param rear_only character. Filter to this rear type before tabulating.
+#'   Default \code{"W"}. Set to \code{NULL} to include all fish.
 #'
-#' @return A wide data frame: rows = week numbers, columns = GenStock codes,
-#'   values = fish counts (0 for absent combinations).
-#'
+#' @return A data frame with one row per week. Columns are \code{Week},
+#'   one column per GenStock code, and \code{Total} (usable fish per week).
 #' @export
-genstock_by_week <- function(trap, rear_only = "W") {
+genstock_by_week <- function(trap, species, rear_only = "W") {
+
+  species <- match.arg(species, c("chnk", "sthd"))
 
   df <- trap
   if (!is.null(rear_only) && "Rear" %in% names(df))
     df <- df[!is.na(df$Rear) & df$Rear == rear_only, ]
 
-  counts  <- table(df$WeekNumber, df$GenStock)
-  mat     <- as.data.frame.matrix(counts)
-  total   <- as.data.frame(t(colSums(mat)))
-  total   <- cbind(Week = NA_integer_, total)
-  out     <- cbind(Week = as.integer(rownames(mat)), mat)
+  counts <- table(df$WeekNumber, df$GenStock)
+  out    <- as.data.frame.matrix(counts)
+  out    <- cbind(Week = as.integer(rownames(out)), out)
   rownames(out) <- NULL
-  out     <- rbind(out, total)
-  row.names(out)[nrow(out)] <- "Total"
+
+  # Total = fish usable for composition: GenStock present (+ fwAge for sthd)
+  has_gs  <- !is.na(df$GenStock) & df$GenStock != "NA"
+  if (species == "sthd") {
+    usable <- has_gs & !is.na(df$fwAge)
+  } else {
+    usable <- has_gs
+  }
+  totals_per_week <- tapply(usable, df$WeekNumber, sum)
+  out$Total <- as.integer(totals_per_week[as.character(out$Week)])
+
   out
 }
