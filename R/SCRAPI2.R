@@ -10,7 +10,7 @@
 #'   of uncertainty into the bootstrap confidence intervals: (1) per-fish posterior
 #'   draws of genetic stock identification (GSI) assignments, and (2) uncertainty
 #'   in the juvenile bypass system guidance efficiency (GE) estimate. When neither
-#'   \code{gsiDraws} nor \code{geSE} is supplied the function behaves identically
+#'   \code{gsiDraws} nor \code{geDraws} is supplied the function behaves identically
 #'   to \code{SCRAPI}.
 #'
 #' @inheritParams SCRAPI
@@ -26,10 +26,12 @@
 #' @param n_point number of GSI posterior draws used to compute the point estimate
 #'   when \code{gsiDraws} is supplied. The point estimate is the mean across these
 #'   draws. Default is 100.
-#' @param geSE column name in \code{passageData} containing the standard error of
-#'   the daily guidance efficiency estimate. When supplied, a new GE value is drawn
-#'   from a Beta distribution (parameterised by the observed mean and this SE) in
-#'   each bootstrap iteration. Set to \code{NULL} (default) to treat GE as fixed.
+#' @param geDraws a data frame of pre-computed GE posterior draws returned by
+#'   \code{\link{generate_ge_draws}}. Must have a \code{SampleEndDate} column
+#'   matching dates in \code{passageData} and at least \code{B} columns named
+#'   \code{boot_1}, \ldots, \code{boot_B}. In each bootstrap iteration the
+#'   corresponding draw column replaces the fixed \code{GuidanceEfficiency} values.
+#'   Set to \code{NULL} (default) to treat GE as fixed.
 #'
 #' @return A list (returned invisibly) with two elements:
 #'   \item{CI}{matrix of point estimates and bootstrap confidence intervals,
@@ -56,7 +58,7 @@
 #'         B           = 2000)
 #' }
 #'
-#' @importFrom stats rbeta rbinom quantile
+#' @importFrom stats rbinom quantile plogis
 #' @export
 
 SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
@@ -67,7 +69,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
                     REARSTRAT = TRUE, alph = 0.1, B = 2000,
                     dateFormat = "%m/%d/%Y",
                     gsiDraws = NULL, fishID = "MasterID", n_point = 100,
-                    geSE = NULL)
+                    geDraws = NULL)
 {
   # ---- import data -------------------------------------------------------
   if(is.character(smoltData))   { All  <- read.csv(smoltData,  header = TRUE) } else { All  <- smoltData  }
@@ -83,9 +85,11 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     if(ncol(gsiDraws) < nDrawsNeeded)
       stop("gsiDraws needs at least max(B, n_point) + 1 = ", nDrawsNeeded, " columns")
   }
-  if(!is.null(geSE)) {
-    if(!geSE %in% names(pass))
-      stop("geSE column '", geSE, "' not found in passageData")
+  if(!is.null(geDraws)) {
+    if(!"SampleEndDate" %in% names(geDraws))
+      stop("geDraws must have a 'SampleEndDate' column")
+    if(ncol(geDraws) - 1 < B)
+      stop("geDraws must have at least B = ", B, " draw columns (boot_1 ... boot_B)")
   }
 
   # ---- header ------------------------------------------------------------
@@ -98,16 +102,8 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   cat("\nBootstrap iterations: B =", B, "| Alpha =", alph, "\n")
   if(!is.null(gsiDraws))
     cat("\nGSI posterior uncertainty: ON  (n_point =", n_point, "draws for point estimate)\n")
-  if(!is.null(geSE))
-    cat("\nGuidance efficiency uncertainty: ON  (SE column =", geSE, ")\n")
-
-  # ---- helper: sample GE from Beta(mu, se) -------------------------------
-  sampleGE <- function(mu, se) {
-    if(is.na(se) || se <= 0 || is.na(mu) || mu <= 0 || mu >= 1) return(mu)
-    kappa <- mu * (1 - mu) / se^2 - 1
-    if(kappa <= 0) return(mu)
-    rbeta(1, mu * kappa, (1 - mu) * kappa)
-  }
+  if(!is.null(geDraws))
+    cat("\nGuidance efficiency uncertainty: ON  (geDraws supplied, B =", B, "draws)\n")
 
   # ---- inner: average secondary prop fallback ----------------------------
   getAvgProp <- function(Fh) {
@@ -193,7 +189,6 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   PASScounts  <- which(tally    == names(pass))
   PASSguideff <- which(guidance == names(pass))
   PASScollaps <- which(collaps  == names(pass))
-  PASSse      <- if(!is.null(geSE)) which(geSE == names(pass)) else NULL
 
   ndays <- nrow(pass)
 
@@ -209,6 +204,17 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   passdata <- data.frame(Stratum = pass[, PASScollaps],
                          Tally   = pass[, PASScounts],
                          Ptrue   = pass$true)
+
+  # ---- pre-compute geDraws daily matrix (n_days x B) ---------------------
+  if(!is.null(geDraws)) {
+    ge_day_idx <- match(as.Date(pass[, dat], format = dateFormat),
+                        as.Date(geDraws$SampleEndDate))
+    ge_mat_raw <- as.matrix(geDraws[, -1, drop = FALSE])   # n_gedays x ncol-1
+    ge_season  <- colMeans(ge_mat_raw, na.rm = TRUE)        # fallback: season mean per draw
+    ge_day_mat <- matrix(ge_season, nrow = ndays, ncol = B, byrow = TRUE)
+    valid_ge   <- !is.na(ge_day_idx)
+    ge_day_mat[valid_ge, ] <- ge_mat_raw[ge_day_idx[valid_ge], seq_len(B), drop = FALSE]
+  }
 
   passcollaps  <- tapply(pass$estimated, pass[, PASScollaps], sum)
   rpasscollaps <- round(passcollaps)
@@ -336,10 +342,9 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
       for(i in 1:ndays)
         if(est_daily[i] > 0) cntstar[i] <- rbinom(1, est_daily[i], passdata$Ptrue[i])
 
-      # GE uncertainty: draw new Ptrue from Beta if geSE supplied
-      if(!is.null(geSE)) {
-        ge_draw <- mapply(sampleGE, pass[, PASSguideff], pass[, PASSse])
-        ptrue_b <- pass[, PASSrate] * ge_draw
+      # GE uncertainty: use pre-computed geDraws column for this iteration
+      if(!is.null(geDraws)) {
+        ptrue_b <- pass[, PASSrate] * ge_day_mat[, b]
       } else {
         ptrue_b <- passdata$Ptrue
       }

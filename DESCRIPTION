@@ -10,12 +10,14 @@ Imports:
 	tibble,
 	dplyr,
 	readr,
-	tidyr
+	tidyr,
+	rjags
 Suggests:
     tidyverse,
     knitr,
     rmarkdown,
-    lubridate
+    lubridate,
+    coda
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
