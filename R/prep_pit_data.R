@@ -102,6 +102,22 @@ prep_pit_data <- function(pit,
   # ---- parse date ----------------------------------------------------------
   dat$det_date <- as.Date(dat$Event.Date.MMDDYYYY, format = "%m/%d/%Y")
 
+  # ---- drop pre-mark detections (tag reuse artifact) ----------------------
+  # PIT tags are reused: the CTH includes detections from the PREVIOUS fish
+  # that carried the same tag code. Remove any observation whose date precedes
+  # the mark event date for the current fish.
+  mark_dates <- tapply(
+    dat$det_date[dat$Event.Type.Name == "Mark"],
+    dat$Tag.Code[dat$Event.Type.Name == "Mark"],
+    min
+  )
+  dat$mark_date <- as.Date(mark_dates[dat$Tag.Code], origin = "1970-01-01")
+  n_before <- nrow(dat)
+  dat <- dat[!is.na(dat$det_date) & dat$det_date >= dat$mark_date, ]
+  n_removed <- n_before - nrow(dat)
+  if (n_removed > 0)
+    message("Dropped ", n_removed, " pre-mark detection rows (tag reuse).")
+
   # ---- extract mark RKM (passed through for use in prep_ge_data Pool A) ----
   rkm_col  <- intersect(c("Mark.Site.RKM.Total", "Mark.Site.RKM.Value"),
                         names(dat))[1]
