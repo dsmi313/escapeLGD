@@ -1,6 +1,6 @@
 # SCRAPI v2.2 - Salmonid Composition and Run Analyses for Pacific salmon Indices
 # Original authors: Kirk Steinhorst and Mike Ackerman (mackerman44/SCOBI)
-# Ported into escapeLGD for use alongside EASE uncertainty framework.
+# Ported into smoltEASE for use alongside EASE uncertainty framework.
 # mApply (plyr) replaced with base R tapply; behavior is identical.
 
 #' @title SCRAPI v2.2: The smolt companion to SCOBI
