@@ -131,5 +131,7 @@ prep_ge_data <- function(dat_up,
   full_join(psi_pool, lgr_counts, by = "stratum") %>%
     left_join(spill_strat, by = "stratum") %>%
     mutate(across(where(is.numeric), ~replace_na(., 0))) %>%
+    mutate(psi         = ifelse(n_pool > 0, n_GRS_pool / n_pool, NA_real_),
+           n_total_GRS = n_GRJ_obs + n_GRS_obs) %>%
     arrange(stratum_idx)
 }
