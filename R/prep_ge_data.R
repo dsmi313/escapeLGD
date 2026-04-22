@@ -47,7 +47,10 @@ prep_ge_data <- function(dat_up,
                          min_mark_rkm     = 695,
                          downstream_sites = c("GOJ","LMJ","MCJ","JDJ",
                                               "B2J","BCC","TWX",
-                                              "PD5","PD6","PD7","PD8","PDW")) {
+                                              "PD5","PD6","PD7","PD8","PDW",
+                                              "ICH","PDO","ESANIS","TTOWER",
+                                              "ASMEBR","PIER3","MLRSNI",
+                                              "LMILIS","FOUNDI","CRESIS")) {
 
   species <- match.arg(species, c("chnk", "sthd"))
 
