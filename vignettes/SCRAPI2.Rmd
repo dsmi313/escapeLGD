@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
   echo    = TRUE,
   message = FALSE,
   warning = FALSE,
-  eval    = FALSE   # set to TRUE once all input files are present
+  eval    = TRUE
 )
 ```
 
