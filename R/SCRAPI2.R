@@ -82,6 +82,14 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   if(is.character(smoltData))   { All  <- read.csv(smoltData,  header = TRUE) } else { All  <- smoltData  }
   if(is.character(passageData)) { pass <- read.csv(passageData, header = TRUE) } else { pass <- passageData }
 
+  # Normalise date columns to Date class up front. POSIXct input (common when
+  # loaded from DB drivers) prints with timestamp suffixes under table() and
+  # then fails to re-parse under as.Date(..., format=dateFormat).
+  All[[Dat]]  <- as.Date(All[[Dat]])
+  pass[[dat]] <- as.Date(pass[[dat]])
+  if(!is.null(geDraws))
+    geDraws$SampleEndDate <- as.Date(geDraws$SampleEndDate)
+
   # ---- apply strata mapping if supplied ----------------------------------
   if (!is.null(strata)) {
     if (ncol(strata) != 2)
