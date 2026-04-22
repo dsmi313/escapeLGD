@@ -21,7 +21,8 @@ Suggests:
     coda,
     DBI,
     odbc,
-    readxl
+    readxl,
+    SCOBI
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
