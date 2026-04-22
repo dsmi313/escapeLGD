@@ -30,10 +30,12 @@
 #'   draws. Default is 100.
 #' @param geDraws a data frame of pre-computed GE posterior draws returned by
 #'   \code{\link{generate_ge_draws}}. Must have a \code{SampleEndDate} column
-#'   matching dates in \code{passageData} and at least \code{B} columns named
-#'   \code{boot_1}, \ldots, \code{boot_B}. In each bootstrap iteration the
-#'   corresponding draw column replaces the fixed \code{GuidanceEfficiency} values.
-#'   Set to \code{NULL} (default) to treat GE as fixed.
+#'   matching dates in \code{passageData} plus draw columns named \code{boot_1},
+#'   \code{boot_2}, etc. In each bootstrap iteration the corresponding draw
+#'   column replaces the fixed \code{GuidanceEfficiency} values. If the number
+#'   of draw columns is less than \code{B}, columns are sampled with replacement
+#'   (same policy as \code{gsiDraws}). Set to \code{NULL} (default) to treat GE
+#'   as fixed.
 #'
 #' @return A list (returned invisibly) with two elements:
 #'   \item{CI}{matrix of point estimates and bootstrap confidence intervals,
@@ -126,8 +128,16 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   if(!is.null(geDraws)) {
     if(!"SampleEndDate" %in% names(geDraws))
       stop("geDraws must have a 'SampleEndDate' column")
-    if(ncol(geDraws) - 1 < B)
-      stop("geDraws must have at least B = ", B, " draw columns (boot_1 ... boot_B)")
+    n_ge_available <- ncol(geDraws) - 1L
+    if(n_ge_available < 1L)
+      stop("geDraws must have at least one draw column in addition to SampleEndDate")
+    if(n_ge_available < B) {
+      message("geDraws has ", n_ge_available, " draw column(s) but B = ", B,
+              "; sampling GE draws with replacement.")
+      ge_idx_boot <- sample.int(n_ge_available, B, replace = TRUE)
+    } else {
+      ge_idx_boot <- seq_len(B)
+    }
   }
 
   # ---- header ------------------------------------------------------------
@@ -278,11 +288,11 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   if(!is.null(geDraws)) {
     ge_day_idx <- match(as.Date(pass[, dat], format = dateFormat),
                         as.Date(geDraws$SampleEndDate, format = dateFormat))
-    ge_mat_raw <- as.matrix(geDraws[, -1, drop = FALSE])   # n_gedays x ncol-1
-    ge_season  <- colMeans(ge_mat_raw, na.rm = TRUE)        # fallback: season mean per draw
+    ge_mat_raw <- as.matrix(geDraws[, -1, drop = FALSE])   # n_gedays x n_ge_available
+    ge_season  <- colMeans(ge_mat_raw, na.rm = TRUE)[ge_idx_boot]  # season fallback per boot
     ge_day_mat <- matrix(ge_season, nrow = ndays, ncol = B, byrow = TRUE)
     valid_ge   <- !is.na(ge_day_idx)
-    ge_day_mat[valid_ge, ] <- ge_mat_raw[ge_day_idx[valid_ge], seq_len(B), drop = FALSE]
+    ge_day_mat[valid_ge, ] <- ge_mat_raw[ge_day_idx[valid_ge], ge_idx_boot, drop = FALSE]
   }
 
   passcollaps  <- tapply(pass$estimated, pass[, PASScollaps], sum)
