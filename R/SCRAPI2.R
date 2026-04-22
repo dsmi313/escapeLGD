@@ -207,6 +207,23 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   PASSguideff <- which(guidance == names(pass))
   PASScollaps <- which(collaps  == names(pass))
 
+  # Required columns other than GuidanceEfficiency (handled below) must exist.
+  # Missing Collapse is common when users forget to pass 'strata'; surface the
+  # fix rather than letting the failure cascade into a cryptic dimnames error.
+  req <- list(strat = PASSstrat, dat = PASSdate, samrate = PASSrate,
+              tally = PASScounts, collaps = PASScollaps)
+  missing_nm <- names(req)[vapply(req, length, integer(1)) == 0]
+  if (length(missing_nm) > 0) {
+    lookup <- c(strat = strat, dat = dat, samrate = samrate,
+                tally = tally, collaps = collaps)
+    hint <- ""
+    if ("collaps" %in% missing_nm)
+      hint <- paste0(" (pass strata = <Week/Collapse data frame> to have ",
+                     "SCRAPI2 build the '", collaps, "' column for you)")
+    stop("passageData is missing required column(s): ",
+         paste(shQuote(lookup[missing_nm]), collapse = ", "), hint)
+  }
+
   # When geDraws is supplied the bootstrap uses per-draw GE, but the initial
   # setup still needs a point-estimate GE column. If GuidanceEfficiency is
   # absent, derive it from the row means of geDraws.
