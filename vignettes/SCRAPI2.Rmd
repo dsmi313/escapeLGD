@@ -167,10 +167,34 @@ The model links $\psi_s$ to spill via a hierarchical logistic regression:
 
 $$\text{logit}(\psi_s) \sim \mathcal{N}(\alpha + \beta \cdot \text{spill}_s,\ \sigma_\psi^2)$$
 
-with weakly informative priors $\alpha, \beta \sim \mathcal{N}(0, 10)$ and
-$\sigma_\psi \sim \text{HalfCauchy}(0, 1)$. Fitting is done in JAGS via
-`fit_ge_model()`. Each MCMC draw of $\{\psi_s\}$ becomes one column in `geDraws`,
-so GE uncertainty propagates through every bootstrap iteration of SCRAPI2.
+with weakly informative priors $\alpha, \beta \sim \mathcal{N}(0, 0.001^{-1})$ and
+$\sigma_\psi \sim \text{HalfNormal}(0, 1)$. Spill is z-score standardised before
+fitting. Fitting is done in JAGS via `fit_ge_model()`. Each MCMC draw of
+$\{\psi_s\}$ becomes one column in `geDraws`, so GE uncertainty propagates through
+every bootstrap iteration of SCRAPI2.
+
+The JAGS model used internally by `fit_ge_model()`:
+
+```
+model {
+  for (s in 1:n_strata) {
+    n_GRS_pool[s] ~ dbin(psi[s], n_pool[s])   # binomial likelihood
+    logit(psi[s]) <- logit_psi[s]
+    logit_psi[s]  ~ dnorm(mu_psi[s], tau_psi)  # stratum-level random effect
+    mu_psi[s]     <- alpha + beta * spill_sc[s] # spill regression
+  }
+
+  alpha     ~ dnorm(0, 0.001)   # intercept (weakly informative)
+  beta      ~ dnorm(0, 0.001)   # spill slope
+  tau_psi   <- pow(sigma_psi, -2)
+  sigma_psi ~ dnorm(0, 1) T(0,) # half-normal on random-effect SD
+}
+```
+
+`n_GRS_pool[s]` is the number of PIT-tagged fish detected at GRS in stratum $s$,
+`n_pool[s]` is the total pool size (GRS + UND fish), and `spill_sc[s]` is
+z-score-standardised spill. Strata with no psi-pool fish are excluded from the
+likelihood and get regression-predicted $\psi$ in `generate_ge_draws()`.
 
 ## Prepare the stratum-level GE data
 
