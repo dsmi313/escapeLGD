@@ -266,11 +266,14 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   ndates <- length(set)
   All$true <- NA_real_
   for(nn in 1:ndates) {
-    ptmp <- pass[as.Date(pass[, PASSdate], format = dateFormat) ==
-                   as.Date(set[nn], origin = "1970-01-01", format = dateFormat), ]
-    if (nrow(ptmp) > 0)
-      All$true[as.Date(All[, FISHdate], format = dateFormat) ==
-                 as.Date(set[nn], origin = "1970-01-01", format = dateFormat)] <- ptmp$true
+    ptmp     <- pass[!is.na(as.Date(pass[, PASSdate], format = dateFormat)) &
+                     as.Date(pass[, PASSdate], format = dateFormat) ==
+                     as.Date(set[nn], origin = "1970-01-01", format = dateFormat), ]
+    fish_idx <- !is.na(as.Date(All[, FISHdate], format = dateFormat)) &
+                as.Date(All[, FISHdate], format = dateFormat) ==
+                as.Date(set[nn], origin = "1970-01-01", format = dateFormat)
+    if (nrow(ptmp) > 0 && any(fish_idx))
+      All$true[fish_idx] <- ptmp$true
   }
   n_unmatched <- sum(is.na(All$Collaps) | is.na(All$true))
   if (n_unmatched > 0)
