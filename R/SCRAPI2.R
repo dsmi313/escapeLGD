@@ -231,7 +231,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     if (is.null(geDraws))
       stop("passageData is missing the '", guidance, "' column and no geDraws supplied.")
     ge_date_idx <- match(as.Date(pass[, PASSdate], format = dateFormat),
-                         as.Date(geDraws$SampleEndDate))
+                         as.Date(geDraws$SampleEndDate, format = dateFormat))
     ge_means    <- rowMeans(as.matrix(geDraws[, -1, drop = FALSE]), na.rm = TRUE)
     pass[[guidance]] <- ifelse(is.na(ge_date_idx), mean(ge_means, na.rm = TRUE),
                                ge_means[ge_date_idx])
@@ -256,7 +256,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   # ---- pre-compute geDraws daily matrix (n_days x B) ---------------------
   if(!is.null(geDraws)) {
     ge_day_idx <- match(as.Date(pass[, dat], format = dateFormat),
-                        as.Date(geDraws$SampleEndDate))
+                        as.Date(geDraws$SampleEndDate, format = dateFormat))
     ge_mat_raw <- as.matrix(geDraws[, -1, drop = FALSE])   # n_gedays x ncol-1
     ge_season  <- colMeans(ge_mat_raw, na.rm = TRUE)        # fallback: season mean per draw
     ge_day_mat <- matrix(ge_season, nrow = ndays, ncol = B, byrow = TRUE)
@@ -271,26 +271,40 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   cat("\nTotal smolts:", round(sum(passcollaps)), "\n")
 
   # ---- assign stratum and true rate to each fish -------------------------
-  nAll        <- nrow(All)
+  # Pre-parse dates once; use which() so NA rows don't end up as subscripts.
+  # Previous approach compared raw character dates which breaks when the two
+  # sources use different string formats (e.g. "2025-04-08" vs "4/08/2025").
+  nAll          <- nrow(All)
+  pass_dates_d  <- as.Date(pass[, PASSdate], format = dateFormat)
+  all_dates_d   <- as.Date(All[,  FISHdate], format = dateFormat)
+
+  if (all(is.na(pass_dates_d)))
+    stop("Could not parse any '", dat, "' values in passageData with dateFormat='",
+         dateFormat, "'. Example value: ", shQuote(pass[1, PASSdate]))
+  if (all(is.na(all_dates_d)))
+    stop("Could not parse any '", Dat, "' values in smoltData with dateFormat='",
+         dateFormat, "'. Example value: ", shQuote(All[1, FISHdate]))
+
   All$Collaps <- NA_integer_
-  for(d in unique(All[, FISHdate])) {
-    pidx <- pass[, PASSdate] == d
-    if (any(pidx))
-      All$Collaps[All[, FISHdate] == d] <- pass[pidx, PASScollaps]
+  for(d in unique(all_dates_d)) {
+    if (is.na(d)) next
+    pidx  <- which(!is.na(pass_dates_d) & pass_dates_d == d)
+    fidx  <- which(!is.na(all_dates_d)  & all_dates_d  == d)
+    if (length(pidx) > 0 && length(fidx) > 0)
+      All$Collaps[fidx] <- pass[pidx[1], PASScollaps]
   }
 
-  set    <- intersect(All[, FISHdate], pass[, PASSdate])
-  ndates <- length(set)
+  # intersect() would strip the Date class; use %in% to preserve it.
+  all_valid  <- all_dates_d[!is.na(all_dates_d) & all_dates_d %in% pass_dates_d]
+  set        <- sort(unique(all_valid))
+  ndates     <- length(set)
   All$true <- NA_real_
-  for(nn in 1:ndates) {
-    ptmp     <- pass[!is.na(as.Date(pass[, PASSdate], format = dateFormat)) &
-                     as.Date(pass[, PASSdate], format = dateFormat) ==
-                     as.Date(set[nn], origin = "1970-01-01", format = dateFormat), ]
-    fish_idx <- !is.na(as.Date(All[, FISHdate], format = dateFormat)) &
-                as.Date(All[, FISHdate], format = dateFormat) ==
-                as.Date(set[nn], origin = "1970-01-01", format = dateFormat)
-    if (nrow(ptmp) > 0 && any(fish_idx))
-      All$true[fish_idx] <- ptmp$true
+  for(nn in seq_len(ndates)) {
+    set_d    <- set[nn]
+    ptmp     <- pass[which(!is.na(pass_dates_d) & pass_dates_d == set_d), , drop = FALSE]
+    fish_idx <- which(!is.na(all_dates_d) & all_dates_d == set_d)
+    if (nrow(ptmp) > 0 && length(fish_idx) > 0)
+      All$true[fish_idx] <- ptmp$true[1]
   }
   n_unmatched <- sum(is.na(All$Collaps) | is.na(All$true))
   if (n_unmatched > 0)
@@ -305,21 +319,24 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   AllPrimary <- droplevels(AllRTYPE[AllRTYPE[, FISHpndx] != "NA", ])
   nFISH      <- nrow(AllPrimary)
 
-  set    <- intersect(AllPrimary[, FISHdate], pass[, PASSdate])
-  ndates <- length(set)
+  # Pre-parse dates so NA rows don't leak into subscripts/comparisons.
+  allp_dates_d <- as.Date(AllPrimary[, FISHdate], format = dateFormat)
+  all_valid    <- allp_dates_d[!is.na(allp_dates_d) & allp_dates_d %in% pass_dates_d]
+  set          <- sort(unique(all_valid))
+  ndates       <- length(set)
 
-  tabl   <- table(AllPrimary[, FISHdate], AllPrimary[, FISHpndx])
-  nPrime <- apply(tabl, 1, sum)
+  tabl      <- table(AllPrimary[, FISHdate], AllPrimary[, FISHpndx])
+  nPrime    <- apply(tabl, 1, sum)
+  nPrime_d  <- as.Date(names(nPrime), format = dateFormat)
 
   AllPrimary$SR <- numeric(nFISH)
-  for(nn in 1:ndates) {
-    ptmp <- pass[as.Date(pass[, PASSdate], format = dateFormat) ==
-                   as.Date(set[nn], origin = "1970-01-01", format = dateFormat), ]
-    pc   <- nPrime[which(as.Date(names(nPrime), format = dateFormat) ==
-                           as.Date(set[nn], origin = "1970-01-01", format = dateFormat))]
-    AllPrimary$SR[as.Date(AllPrimary[, FISHdate], format = dateFormat) ==
-                    as.Date(set[nn], origin = "1970-01-01", format = dateFormat)] <-
-      ptmp$true * pc / ptmp[, PASScounts]
+  for(nn in seq_len(ndates)) {
+    set_d <- set[nn]
+    ptmp  <- pass[which(!is.na(pass_dates_d) & pass_dates_d == set_d), , drop = FALSE]
+    pc    <- nPrime[which(!is.na(nPrime_d) & nPrime_d == set_d)]
+    fidx  <- which(!is.na(allp_dates_d) & allp_dates_d == set_d)
+    if (nrow(ptmp) > 0 && length(fidx) > 0 && length(pc) > 0)
+      AllPrimary$SR[fidx] <- ptmp$true[1] * pc[1] / ptmp[1, PASScounts]
   }
 
   # ---- strata / group metadata -------------------------------------------
