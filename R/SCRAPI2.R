@@ -73,7 +73,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
                     strat = "Week", dat = "SampleEndDate", tally = "SampleCount",
                     samrate = "SampleRate", guidance = "GuidanceEfficiency",
                     collaps = "Collapse", Run = "output", RTYPE = "W",
-                    REARSTRAT = TRUE, alph = 0.1, B = 2000,
+                    REARSTRAT = TRUE, alph = 0.1, B = 5000,
                     dateFormat = "%m/%d/%Y",
                     gsiDraws = NULL, fishID = "MasterID", n_point = 100,
                     geDraws = NULL, strata = NULL)
@@ -123,11 +123,13 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     cat("\nGuidance efficiency uncertainty: ON  (geDraws supplied, B =", B, "draws)\n")
 
   # ---- inner: average secondary prop fallback ----------------------------
+  # Upstream mApply returns [PGrp x SGrp] ("Pgrps rows x Sgrps cols" per code
+  # comment in SCOBI SCRAPI.r); swap list order in tapply to match.
   getAvgProp <- function(Fh) {
     Fh    <- droplevels(Fh[Fh$SGrp != "NA", ])
     Freqs <- tapply(1/Fh$SR,
-                    list(factor(Fh$SGrp, levels = Sgrps),
-                         factor(Fh$PGrp, levels = Pgrps)),
+                    list(factor(Fh$PGrp, levels = Pgrps),
+                         factor(Fh$SGrp, levels = Sgrps)),
                     sum)
     Freqs[is.na(Freqs)] <- 0
     prop.table(Freqs, margin = 1)
@@ -138,8 +140,11 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     dailypass <- passage$Tally / passage$Ptrue
     bystrata  <- tapply(dailypass, passage$Stratum, sum)
 
+    # Upstream mApply(list(A, B), sum) returns [B x A]; tapply returns [A x B].
+    # We transpose by swapping list order so prop.table(margin=2) normalises
+    # per-stratum columns, matching upstream semantics exactly.
     HNCWstrat <- tapply(1/RearDat$True,
-                        list(RearDat$Stratum, RearDat$Rear), sum)
+                        list(RearDat$Rear, RearDat$Stratum), sum)
     HNCWstrat[is.na(HNCWstrat)] <- 0
 
     if(ncol(as.data.frame(HNCWstrat)) == 1) {
@@ -158,7 +163,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     TotalWild  <- sum(WildStrata)
 
     Primarystrata <- tapply(1/Fish$SR,
-                            list(Fish$Strat, Fish$PGrp), sum)
+                            list(Fish$PGrp, Fish$Strat), sum)
     Primarystrata[is.na(Primarystrata)] <- 0
     Primaryproportions <- prop.table(Primarystrata, margin = 2)
     Primaryests        <- Primaryproportions %*% WildStrata
