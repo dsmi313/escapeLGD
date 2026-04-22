@@ -29,11 +29,11 @@
 #'
 #' @export
 fit_ge_model <- function(ge_data,
-                          n_iter   = 10000,
-                          n_burnin = 3000,
-                          n_chains = 3,
-                          n_thin   = 2,
-                          seed     = 42) {
+                         n_iter   = 10000,
+                         n_burnin = 3000,
+                         n_chains = 3,
+                         n_thin   = 2,
+                         seed     = 42) {
 
   if (!requireNamespace("rjags", quietly = TRUE))
     stop("Package 'rjags' is required. Install with install.packages('rjags') ",
@@ -44,11 +44,19 @@ fit_ge_model <- function(ge_data,
     stop("No strata have psi-pool observations (n_pool > 0). ",
          "Check that dat_up and strat_assign are correctly aligned.")
 
+  spill_mean <- mean(obs_strata$spill_val, na.rm = TRUE)
+  spill_sd   <- sd(obs_strata$spill_val, na.rm = TRUE)
+
+  if (!is.finite(spill_sd) || spill_sd == 0)
+    stop("spill_val has zero or undefined SD among observed strata; cannot scale.")
+
+  spill_sc <- (obs_strata$spill_val - spill_mean) / spill_sd
+
   jags_data <- list(
     n_strata   = nrow(obs_strata),
     n_GRS_pool = obs_strata$n_GRS_pool,
     n_pool     = obs_strata$n_pool,
-    spill_val  = obs_strata$spill_val
+    spill_sc   = spill_sc
   )
 
   model_string <- "
@@ -57,12 +65,13 @@ fit_ge_model <- function(ge_data,
       n_GRS_pool[s] ~ dbin(psi[s], n_pool[s])
       logit(psi[s]) <- logit_psi[s]
       logit_psi[s]  ~ dnorm(mu_psi[s], tau_psi)
-      mu_psi[s]     <- alpha + beta * spill_val[s]
+      mu_psi[s]     <- alpha + beta * spill_sc[s]
     }
+
     alpha     ~ dnorm(0, 0.001)
     beta      ~ dnorm(0, 0.001)
     tau_psi   <- pow(sigma_psi, -2)
-    sigma_psi ~ dunif(0, 3)
+    sigma_psi ~ dnorm(0, 1) T(0,)
   }"
 
   set.seed(seed)
@@ -73,6 +82,7 @@ fit_ge_model <- function(ge_data,
     n.adapt  = n_burnin,
     quiet    = TRUE
   )
+
   samples <- rjags::coda.samples(
     jags_fit,
     variable.names = c("psi", "alpha", "beta", "sigma_psi"),
@@ -80,5 +90,11 @@ fit_ge_model <- function(ge_data,
     thin   = n_thin
   )
 
-  list(samples = samples, ge_data = ge_data, obs_strata = obs_strata)
+  list(
+    samples    = samples,
+    ge_data    = ge_data,
+    obs_strata = obs_strata,
+    spill_mean = spill_mean,
+    spill_sd   = spill_sd
+  )
 }
