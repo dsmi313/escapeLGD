@@ -81,10 +81,7 @@ produces results numerically identical to `SCOBI::SCRAPI`.
 # Install and load
 
 ```{r install, eval=FALSE}
-remotes::install_github(
-  "dsmi313/escapeLGD",
-  ref = "claude/multi-github-pages-connection-sC5FR"
-)
+remotes::install_github("dsmi313/smoltEASE")
 ```
 
 ```{r libraries}
