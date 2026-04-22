@@ -292,6 +292,24 @@ cat("Posterior mean GE by day:\n")
 summary(rowMeans(ge_draws_sthd[, -1]))
 ```
 
+```{r ge-draws-compare}
+# Join model posterior mean GE (by day) to NOAA fixed GE for side-by-side view
+ge_compare <- data.frame(
+  SampleEndDate = ge_draws_sthd$SampleEndDate,
+  Model_GE_mean = round(rowMeans(ge_draws_sthd[, -1]), 4),
+  Model_GE_lo   = round(apply(ge_draws_sthd[, -1], 1, quantile, 0.05), 4),
+  Model_GE_hi   = round(apply(ge_draws_sthd[, -1], 1, quantile, 0.95), 4)
+) %>%
+  left_join(ge_sthd, by = "SampleEndDate") %>%
+  rename(NOAA_GE = GuidanceEfficiency)
+
+knitr::kable(
+  ge_compare,
+  col.names = c("Date", "Model mean GE", "Model 5th %ile", "Model 95th %ile", "NOAA fixed GE"),
+  caption   = "Model posterior mean GE (with 90% interval) vs NOAA fixed GE by day"
+)
+```
+
 ---
 
 # Three-way comparison
