@@ -255,19 +255,26 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
 
   # ---- assign stratum and true rate to each fish -------------------------
   nAll        <- nrow(All)
-  All$Collaps <- numeric(nAll)
-  for(d in unique(All[, FISHdate]))
-    All$Collaps[All[, FISHdate] == d] <- pass[pass[, PASSdate] == d, PASScollaps]
+  All$Collaps <- NA_integer_
+  for(d in unique(All[, FISHdate])) {
+    pidx <- pass[, PASSdate] == d
+    if (any(pidx))
+      All$Collaps[All[, FISHdate] == d] <- pass[pidx, PASScollaps]
+  }
 
   set    <- intersect(All[, FISHdate], pass[, PASSdate])
   ndates <- length(set)
-  All$true <- numeric(nAll)
+  All$true <- NA_real_
   for(nn in 1:ndates) {
     ptmp <- pass[as.Date(pass[, PASSdate], format = dateFormat) ==
                    as.Date(set[nn], origin = "1970-01-01", format = dateFormat), ]
-    All$true[as.Date(All[, FISHdate], format = dateFormat) ==
-               as.Date(set[nn], origin = "1970-01-01", format = dateFormat)] <- ptmp$true
+    if (nrow(ptmp) > 0)
+      All$true[as.Date(All[, FISHdate], format = dateFormat) ==
+                 as.Date(set[nn], origin = "1970-01-01", format = dateFormat)] <- ptmp$true
   }
+  n_unmatched <- sum(is.na(All$Collaps) | is.na(All$true))
+  if (n_unmatched > 0)
+    message(n_unmatched, " fish in smoltData have no matching date in passageData and will be excluded.")
 
   RearData <- data.frame(Rear    = All[, FISHrear],
                          Stratum = All$Collaps,
