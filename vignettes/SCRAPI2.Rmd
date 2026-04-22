@@ -121,7 +121,7 @@ check_trap(STHD.trap, "STHD", check_age = TRUE)
 Week-to-stratum collapse mapping. Each row maps one ISO week number to a
 stratum integer. Weeks in the same stratum are pooled for estimation.
 
-```{r strata}
+```{r strata, R.options=list(width=200)}
 strata_raw  <- read_excel("Smolt Strata.xlsx", sheet = "Sheet1",
                            col_names = FALSE)
 sthd_start  <- which(strata_raw[[1]] == "WeekNumber")[2]
