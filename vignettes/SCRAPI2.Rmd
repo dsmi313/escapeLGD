@@ -293,20 +293,46 @@ summary(rowMeans(ge_draws_sthd[, -1]))
 ```
 
 ```{r ge-draws-compare}
-# Join model posterior mean GE (by day) to NOAA fixed GE for side-by-side view
-ge_compare <- data.frame(
-  SampleEndDate = ge_draws_sthd$SampleEndDate,
-  Model_GE_mean = round(rowMeans(ge_draws_sthd[, -1]), 4),
-  Model_GE_lo   = round(apply(ge_draws_sthd[, -1], 1, quantile, 0.05), 4),
-  Model_GE_hi   = round(apply(ge_draws_sthd[, -1], 1, quantile, 0.95), 4)
+# SCRAPI sums Tally/Ptrue within each stratum, so what matters for the estimates
+# is the stratum-level mean GE, not the per-day value. Compute a passage-count-
+# weighted mean GE per stratum for every posterior draw, then summarise across draws.
+
+fpc_meta <- sthd_fpc %>%
+  left_join(sthd_strata, by = "Week") %>%
+  select(SampleEndDate, Stratum = Collapse, SampleCount)
+
+ge_mat <- as.matrix(ge_draws_sthd[, -1])   # n_days x B
+
+day_strat  <- fpc_meta$Stratum[match(ge_draws_sthd$SampleEndDate,
+                                     fpc_meta$SampleEndDate)]
+day_weight <- fpc_meta$SampleCount[match(ge_draws_sthd$SampleEndDate,
+                                         fpc_meta$SampleEndDate)]
+
+strats    <- sort(unique(day_strat))
+strat_mat <- matrix(NA_real_, nrow = length(strats), ncol = ncol(ge_mat),
+                    dimnames = list(strats, NULL))
+
+for (i in seq_along(strats)) {
+  rows <- which(day_strat == strats[i])
+  w    <- day_weight[rows]
+  strat_mat[i, ] <- apply(ge_mat[rows, , drop = FALSE], 2,
+                           function(x) weighted.mean(x, w, na.rm = TRUE))
+}
+
+strat_summary <- data.frame(
+  Stratum    = strats,
+  Model_mean = round(rowMeans(strat_mat), 3),
+  Model_lo   = round(apply(strat_mat, 1, quantile, 0.05), 3),
+  Model_hi   = round(apply(strat_mat, 1, quantile, 0.95), 3)
 ) %>%
-  left_join(ge_sthd, by = "SampleEndDate") %>%
-  rename(NOAA_GE = GuidanceEfficiency)
+  left_join(noaa_by_collapse %>% mutate(NOAA_GE = round(NOAA_GE, 3)),
+            by = c("Stratum" = "Collapse"))
 
 knitr::kable(
-  ge_compare,
-  col.names = c("Date", "Model mean GE", "Model 5th %ile", "Model 95th %ile", "NOAA fixed GE"),
-  caption   = "Model posterior mean GE (with 90% interval) vs NOAA fixed GE by day"
+  strat_summary,
+  col.names = c("Stratum", "Model mean GE", "5th %ile", "95th %ile", "NOAA fixed GE"),
+  caption   = paste("Stratum-level GE: model posterior (passage-count weighted,",
+                    "90% CI) vs NOAA fixed")
 )
 ```
 
