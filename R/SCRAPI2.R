@@ -17,9 +17,11 @@
 #' @param gsiDraws a data frame where the first column contains individual fish IDs
 #'   (matching \code{fishID} in \code{smoltData}) and each remaining column contains
 #'   the genetic stock assignment for one posterior draw, named \code{boot_1},
-#'   \code{boot_2}, etc. Must have at least \code{max(B, n_point) + 1} columns.
-#'   When supplied, each bootstrap iteration draws a fresh set of per-fish stock
-#'   assignments rather than treating the observed \code{Primary} column as fixed.
+#'   \code{boot_2}, etc. When supplied, each bootstrap iteration draws a fresh set
+#'   of per-fish stock assignments rather than treating the observed \code{Primary}
+#'   column as fixed. If the number of draw columns is less than
+#'   \code{max(B, n_point)}, GSI columns are sampled with replacement (useful when
+#'   the genetics lab provides fewer posterior draws than the bootstrap size).
 #' @param fishID column name in \code{smoltData} that contains individual fish IDs
 #'   for matching to \code{gsiDraws}. Required when \code{gsiDraws} is supplied.
 #'   Defaults to \code{"MasterID"}.
@@ -107,9 +109,19 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
       stop("fishID column '", fishID, "' not found in smoltData")
     if(!all(All[[fishID]] %in% gsiDraws[[1]]))
       stop("Not all fishID values in smoltData are present in gsiDraws")
-    nDrawsNeeded <- max(B, n_point) + 1
-    if(ncol(gsiDraws) < nDrawsNeeded)
-      stop("gsiDraws needs at least max(B, n_point) + 1 = ", nDrawsNeeded, " columns")
+    n_gsi_available <- ncol(gsiDraws) - 1L
+    if(n_gsi_available < 1L)
+      stop("gsiDraws must have at least one draw column in addition to the ID column")
+    n_needed <- max(B, n_point)
+    if(n_gsi_available < n_needed) {
+      message("gsiDraws has ", n_gsi_available, " draw column(s) but max(B, n_point) = ",
+              n_needed, "; sampling GSI draws with replacement.")
+      gsi_idx_point <- sample.int(n_gsi_available, n_point, replace = TRUE)
+      gsi_idx_boot  <- sample.int(n_gsi_available, B,       replace = TRUE)
+    } else {
+      gsi_idx_point <- seq_len(n_point)
+      gsi_idx_boot  <- seq_len(B)
+    }
   }
   if(!is.null(geDraws)) {
     if(!"SampleEndDate" %in% names(geDraws))
@@ -385,7 +397,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     accumPE <- NULL
     for(i in 1:n_point) {
       ap_i <- AllPrimary
-      ap_i[, FISHpndx] <- as.character(gsiDraws[[i + 1]][ind_matches])
+      ap_i[, FISHpndx] <- as.character(gsiDraws[[gsi_idx_point[i] + 1L]][ind_matches])
       fd_i  <- makeFishDat(ap_i)
       est_i <- thetahat(passdata, RearData, fd_i)
       # accumulate theta vector
@@ -458,7 +470,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     # --- GSI draw for this iteration ---
     if(!is.null(gsiDraws)) {
       im    <- match(ap_b[[fishID]], gsiDraws[[1]])
-      ap_b[, FISHpndx] <- as.character(gsiDraws[[b + 1]][im])
+      ap_b[, FISHpndx] <- as.character(gsiDraws[[gsi_idx_boot[b] + 1L]][im])
     }
 
     fd_b    <- makeFishDat(ap_b)
