@@ -33,6 +33,26 @@ generate_ge_draws <- function(ge_fit,
   ge_data    <- ge_fit$ge_data
   obs_strata <- ge_fit$obs_strata
 
+  # --- Normalise strat_assign to date/stratum/stratum_idx format ---
+  if (all(c("Week", "Collapse") %in% names(strat_assign)) &&
+      !("date" %in% names(strat_assign))) {
+
+    all_dates <- sort(unique(as.Date(pass_dates)))
+    wk_num    <- as.integer(format(all_dates, "%V"))
+
+    week_to_strat <- strat_assign
+    names(week_to_strat)[names(week_to_strat) == "Collapse"] <- "stratum"
+    week_to_strat$stratum_idx <- as.integer(
+      factor(week_to_strat$stratum, levels = sort(unique(week_to_strat$stratum)))
+    )
+
+    strat_assign <- merge(
+      data.frame(date = all_dates, Week = wk_num),
+      week_to_strat,
+      by = "Week", all.x = FALSE
+    )[, c("date", "stratum", "stratum_idx")]
+  }
+
   # obs_strata must preserve ge_data row order so JAGS psi[1..k] columns align
   stopifnot(all(diff(obs_strata$stratum_idx) > 0))
 
