@@ -435,7 +435,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
       # weighted bootstrap of rearing data by stratum
       WHstar <- NULL
       for(h in strats) {
-        jw  <- RearData[RearData$Stratum == h, ]
+        jw  <- RearData[which(RearData$Stratum == h), ]
         idx <- sample.int(nrow(jw), replace = TRUE, prob = jw$True)
         WHstar <- rbind(WHstar, jw[idx, ])
       }
@@ -444,7 +444,7 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
       # weighted bootstrap of fish by stratum
       ap_boot <- NULL
       for(h in strats) {
-        jw  <- AllPrimary[AllPrimary$Collaps == h, ]
+        jw  <- AllPrimary[which(AllPrimary$Collaps == h), ]
         idx <- sample.int(nrow(jw), replace = TRUE, prob = jw$SR)
         ap_boot <- rbind(ap_boot, jw[idx, ])
       }
