@@ -144,6 +144,8 @@ ge_sthd <- read_excel("GE 2025.xlsx",
   filter(!is.na(DOY), !is.na(GuidanceEfficiency)) %>%
   mutate(SampleEndDate = as.Date("2024-12-31") + as.integer(DOY)) %>%
   select(SampleEndDate, GuidanceEfficiency)
+
+knitr::kable(head(ge_sthd), caption = "NOAA fixed GE table (first 6 rows)")
 ```
 
 ---
