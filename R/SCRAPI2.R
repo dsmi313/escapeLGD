@@ -207,6 +207,20 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
   PASSguideff <- which(guidance == names(pass))
   PASScollaps <- which(collaps  == names(pass))
 
+  # When geDraws is supplied the bootstrap uses per-draw GE, but the initial
+  # setup still needs a point-estimate GE column. If GuidanceEfficiency is
+  # absent, derive it from the row means of geDraws.
+  if (length(PASSguideff) == 0) {
+    if (is.null(geDraws))
+      stop("passageData is missing the '", guidance, "' column and no geDraws supplied.")
+    ge_date_idx <- match(as.Date(pass[, PASSdate], format = dateFormat),
+                         as.Date(geDraws$SampleEndDate))
+    ge_means    <- rowMeans(as.matrix(geDraws[, -1, drop = FALSE]), na.rm = TRUE)
+    pass[[guidance]] <- ifelse(is.na(ge_date_idx), mean(ge_means, na.rm = TRUE),
+                               ge_means[ge_date_idx])
+    PASSguideff <- which(guidance == names(pass))
+  }
+
   ndays <- nrow(pass)
 
   # ---- passage setup -----------------------------------------------------
