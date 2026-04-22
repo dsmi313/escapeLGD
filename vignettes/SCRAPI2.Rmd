@@ -235,7 +235,7 @@ ge_fit <- fit_ge_model(ge_data)
 gelman.diag(ge_fit$samples)
 ```
 
-## Compare model GE to NOAA fixed GE
+## Compare empirical GE to NOAA fixed GE
 
 ```{r ge-compare-plot}
 # Aggregate NOAA fixed GE to stratum level (weekly mean within each collapse)
@@ -246,22 +246,23 @@ noaa_by_collapse <- ge_sthd %>%
   group_by(Collapse) %>%
   summarise(NOAA_GE = mean(GuidanceEfficiency, na.rm = TRUE), .groups = "drop")
 
+# Raw_GE = n_GRJ / (n_GRJ + n_GRS/psi): empirical GE using observed psi
+# psi itself is not plotted — it measures spillway detection prob, a different quantity
 plot_dat <- ge_data %>%
-  mutate(raw_GE = n_GRJ_obs / (n_GRJ_obs + n_total_GRS)) %>%
+  mutate(Raw_GE = n_GRJ_obs / (n_GRJ_obs + n_total_GRS)) %>%
   left_join(noaa_by_collapse, by = c("stratum" = "Collapse")) %>%
-  select(stratum, spill_per = spill_val, Model_psi = psi, Raw_GE = raw_GE, NOAA_GE) %>%
-  pivot_longer(c(Model_psi, Raw_GE, NOAA_GE),
+  select(stratum, spill_per = spill_val, Raw_GE, NOAA_GE) %>%
+  pivot_longer(c(Raw_GE, NOAA_GE),
                names_to = "source", values_to = "GE")
 
 ggplot(plot_dat, aes(x = spill_per, y = GE, colour = source, label = stratum)) +
   geom_line(aes(group = source), linewidth = 0.8) +
   geom_point(size = 3) +
-  geom_text(nudge_y = 0.015, show.legend = FALSE, size = 3) +
+  geom_text(nudge_y = 0.008, show.legend = FALSE, size = 3) +
   scale_colour_manual(
-    values = c(Model_psi = "#2166ac", Raw_GE = "#d73027", NOAA_GE = "#4dac26"),
-    labels = c(Model_psi = "Bayesian model (psi)",
-               Raw_GE    = "Raw empirical GE",
-               NOAA_GE   = "NOAA fixed GE")
+    values = c(Raw_GE  = "#d73027", NOAA_GE = "#4dac26"),
+    labels = c(Raw_GE  = "Raw empirical GE",
+               NOAA_GE = "NOAA fixed GE")
   ) +
   labs(title  = "GE estimates by stratum and method",
        x      = "Mean spill (%)",
