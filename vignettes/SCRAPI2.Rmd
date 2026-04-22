@@ -63,7 +63,14 @@ used independently or together:
 2. **GSI draws (`gsiDraws`)** — instead of fixed stock assignments in the trap,
    supply posterior draws from a genetic stock identification model. Each
    bootstrap iteration uses a different draw so genetic uncertainty flows through
-   into per-stock CIs.
+   into per-stock CIs. This directly mirrors the approach already used on the
+   adult side under the **EASE** (Escapement Analysis with Uncertainty) framework,
+   where per-fish posterior stock-assignment draws from a GSI model propagate
+   genetic uncertainty into adult escapement estimates. For juveniles all that is
+   needed is the same draw format — one column per posterior sample, one row per
+   fish — that the genetics lab already produces for adults. The `sim_gsi_draws()`
+   helper generates a placeholder in that format from the observed trap assignments
+   while real draws are pending.
 
 **Key guarantee:** when every column of `geDraws` is identical (or when
 `geDraws = NULL` and a fixed `GuidanceEfficiency` column is supplied), `SCRAPI2`
