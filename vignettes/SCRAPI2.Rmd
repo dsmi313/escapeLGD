@@ -280,12 +280,12 @@ frames. `SCRAPI2` handles this internally via its `strata =` argument.
 
 ```{r add-collapse-helper}
 add_collapse <- function(df, date_col, strata_tbl) {
-  df %>%
-    mutate(.d   = as.Date(!!sym(date_col)),
-           Week = isoweek(.d)) %>%
-    left_join(strata_tbl, by = "Week") %>%
-    mutate("{date_col}" := format(.d, "%Y-%m-%d")) %>%
-    select(-.d)
+  df$.d          <- as.Date(df[[date_col]])
+  df$Week        <- isoweek(df$.d)
+  df             <- left_join(df, strata_tbl, by = "Week")
+  df[[date_col]] <- format(df$.d, "%Y-%m-%d")
+  df$.d          <- NULL
+  df
 }
 ```
 
