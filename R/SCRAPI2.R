@@ -66,6 +66,7 @@
 #'   existing \code{Collapse} column in \code{passageData}. Default \code{NULL}.
 #'
 #' @importFrom stats rbinom quantile plogis
+#' @importFrom Hmisc mApply
 #' @export
 
 SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
@@ -131,14 +132,12 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     cat("\nGuidance efficiency uncertainty: ON  (geDraws supplied, B =", B, "draws)\n")
 
   # ---- inner: average secondary prop fallback ----------------------------
-  # Upstream mApply returns [PGrp x SGrp] ("Pgrps rows x Sgrps cols" per code
-  # comment in SCOBI SCRAPI.r); swap list order in tapply to match.
   getAvgProp <- function(Fh) {
     Fh    <- droplevels(Fh[Fh$SGrp != "NA", ])
-    Freqs <- tapply(1/Fh$SR,
-                    list(factor(Fh$PGrp, levels = Pgrps),
-                         factor(Fh$SGrp, levels = Sgrps)),
-                    sum)
+    Freqs <- Hmisc::mApply(1/Fh$SR,
+                           list(factor(Fh$SGrp, levels = Sgrps),
+                                factor(Fh$PGrp, levels = Pgrps)),
+                           sum)
     Freqs[is.na(Freqs)] <- 0
     prop.table(Freqs, margin = 1)
   }
@@ -148,11 +147,8 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     dailypass <- passage$Tally / passage$Ptrue
     bystrata  <- tapply(dailypass, passage$Stratum, sum)
 
-    # Upstream mApply(list(A, B), sum) returns [B x A]; tapply returns [A x B].
-    # We transpose by swapping list order so prop.table(margin=2) normalises
-    # per-stratum columns, matching upstream semantics exactly.
-    HNCWstrat <- tapply(1/RearDat$True,
-                        list(RearDat$Rear, RearDat$Stratum), sum)
+    HNCWstrat <- Hmisc::mApply(1/RearDat$True,
+                               list(RearDat$Stratum, RearDat$Rear), sum)
     HNCWstrat[is.na(HNCWstrat)] <- 0
 
     if(ncol(as.data.frame(HNCWstrat)) == 1) {
@@ -170,8 +166,8 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     WildStrata <- PWild * bystrata
     TotalWild  <- sum(WildStrata)
 
-    Primarystrata <- tapply(1/Fish$SR,
-                            list(Fish$PGrp, Fish$Strat), sum)
+    Primarystrata <- Hmisc::mApply(1/Fish$SR,
+                                   list(Fish$Strat, Fish$PGrp), sum)
     Primarystrata[is.na(Primarystrata)] <- 0
     Primaryproportions <- prop.table(Primarystrata, margin = 2)
     Primaryests        <- Primaryproportions %*% WildStrata
@@ -179,11 +175,11 @@ SCRAPI2 <- function(smoltData = NULL, Dat = "CollectionDate", Rr = "Rear",
     if(!is.na(Secondary)) {
       SecondAbund <- array(0, dim = c(nPgrps, nSgrps, nstrats))
       Fish <- droplevels(Fish[Fish$SGrp != "NA", ])
-      Freqs <- tapply(1/Fish$SR,
-                      list(factor(Fish$PGrp, levels = Pgrps),
-                           factor(Fish$SGrp, levels = Sgrps),
-                           factor(Fish$Strat, levels = strats)),
-                      sum)
+      Freqs <- Hmisc::mApply(1/Fish$SR,
+                             list(factor(Fish$PGrp, levels = Pgrps),
+                                  factor(Fish$SGrp, levels = Sgrps),
+                                  factor(Fish$Strat, levels = strats)),
+                             sum)
       Freqs[is.na(Freqs)] <- 0
       Props <- prop.table(Freqs, margin = c(1, 3))
       if(any(is.nan(Props))) {

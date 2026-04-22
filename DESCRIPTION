@@ -11,7 +11,8 @@ Imports:
 	dplyr,
 	readr,
 	tidyr,
-	rjags
+	rjags,
+	Hmisc
 Suggests:
     tidyverse,
     knitr,
