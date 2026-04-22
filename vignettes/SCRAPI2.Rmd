@@ -566,9 +566,3 @@ stopifnot(abs(est_fixed - est_exact) / est_fixed < 0.01)
 | Exact-GE control check | < 1% difference in WildSmolts estimate |
 
 ---
-
-# Session info
-
-```{r session-info, eval=TRUE}
-sessionInfo()
-```
