@@ -12,10 +12,10 @@
 #'   \code{site} (character site code), \code{det_date} (Date). Optional column
 #'   \code{mark_rkm} (numeric) is used with \code{min_mark_rkm} to restrict
 #'   Pool A to upstream-tagged fish without affecting Pool B.
-#' @param min_mark_rkm numeric. Restrict Pool A (psi estimation) to fish with
-#'   \code{mark_rkm} strictly greater than this value (e.g. \code{695} for
-#'   LGR). Pool B (n_GRJ_obs, n_GRS_obs) always uses all fish — fish tagged
-#'   downstream legitimately pass through LGR and are correctly counted there.
+#' @param min_mark_rkm numeric. Restrict both pools to fish tagged strictly
+#'   above this RKM (e.g. \code{695} for LGR). Downstream-tagged fish are
+#'   excluded from both Pool A and Pool B because their LGR detections may
+#'   reflect adult upstream movement rather than smolt downstream migration.
 #'   Default \code{695}.
 #' @param strat_assign data frame mapping weeks to strata. Accepts two formats:
 #'   \itemize{
@@ -51,16 +51,16 @@ prep_ge_data <- function(dat_up,
 
   species <- match.arg(species, c("chnk", "sthd"))
 
-  # Pool A uses only upstream-tagged fish; Pool B uses all fish.
-  # Apply RKM filter only to the Pool A data frame.
+  # Restrict to upstream-tagged fish for both pools.
+  # Upstream fish are the representative sample for both psi estimation (Pool A)
+  # and LGR passage counts (Pool B) — downstream-tagged fish may include adults
+  # moving upstream through the adult fishway, not smolts migrating downstream.
   if (!is.null(min_mark_rkm) && "mark_rkm" %in% names(dat_up)) {
-    dat_pool_a <- dat_up[!is.na(dat_up$mark_rkm) & dat_up$mark_rkm > min_mark_rkm, ]
-    n_removed  <- length(unique(dat_up$tag)) - length(unique(dat_pool_a$tag))
-    message("Pool A RKM filter (mark_rkm > ", min_mark_rkm, "): ",
-            n_removed, " tags excluded from psi pool, ",
-            length(unique(dat_pool_a$tag)), " retained.")
-  } else {
-    dat_pool_a <- dat_up
+    n_before <- length(unique(dat_up$tag))
+    dat_up   <- dat_up[!is.na(dat_up$mark_rkm) & dat_up$mark_rkm > min_mark_rkm, ]
+    message("RKM filter (mark_rkm > ", min_mark_rkm, "): ",
+            n_before - length(unique(dat_up$tag)), " tags removed, ",
+            length(unique(dat_up$tag)), " retained.")
   }
 
   # --- Normalise strat_assign to date/stratum/stratum_idx format ---
@@ -88,17 +88,17 @@ prep_ge_data <- function(dat_up,
     )[, c("date", "stratum", "stratum_idx")]
   }
 
-  # --- Pool A: psi estimation pool (upstream-tagged fish only) ---
+  # --- Pool A: psi estimation pool ---
   # Each upstream-tagged fish is classified by its first LGR route (GRS or UND).
   # GRJ fish are excluded — they never entered the spillway, so they cannot inform
   # psi (P(detected at GRS | passed through spillway)).
-  down_first <- dat_pool_a %>%
+  down_first <- dat_up %>%
     filter(site %in% downstream_sites) %>%
     arrange(tag, det_date) %>%
     group_by(tag) %>% slice(1) %>% ungroup() %>%
     transmute(tag, down_date = det_date)
 
-  lgr_first <- dat_pool_a %>%
+  lgr_first <- dat_up %>%
     filter(site %in% c("GRJ", "GRS")) %>%
     arrange(tag, det_date) %>%
     group_by(tag) %>% slice(1) %>% ungroup() %>%
