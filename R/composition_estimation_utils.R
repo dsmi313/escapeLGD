@@ -34,19 +34,11 @@ PBT_expand_calc_MLE <- function(values, tagRates){
 
 	pr <- tibble(group = names(numAssign), count = as.numeric(numAssign)) %>% left_join(tagRates, by = "group")
 
-	# Start from equal proportions and from observed counts, with Unassigned last.
-	startVals <- list(
-		rep(1, nrow(pr) + 1),
-		log(c(pr$count, numUnassign) + 0.5)
-	)
-	fits <- lapply(startVals, function(st){
-		optim(par = st, fn = PBT_optimllh, gr = PBT_grad,
-				nGroups = pr$count, nUntag = numUnassign, tagRates = pr$tagRate,
-				control = list(fnscale = -1, maxit = 1000), method = "BFGS"
-		)
-	})
-	# Keep the fit with the highest log-likelihood (first start wins ties).
-	propsMLE <- fits[[which.max(vapply(fits, function(x) x$value, numeric(1)))]]
+	# now MLE estimation of proportions\
+	propsMLE <- optim(par = rep(1, nrow(pr) + 1), fn = PBT_optimllh, gr = PBT_grad,
+								nGroups = pr$count, nUntag = numUnassign, tagRates = pr$tagRate,
+							  control = list(fnscale = -1, maxit = 1000), method = "BFGS"
+							)
 	if(propsMLE$convergence != 0) warning("Convergence error in PBT_expand_calc_MLE")
 	# apply softmax to translate into probabilities
 	par_prob <- softMax(propsMLE$par)
@@ -258,20 +250,13 @@ PBT_var2_grad <- function(par, piGroup, v2Data, tagRates){
 #' @keywords internal
 #' @noRd
 PBT_var3_calc_MLE <- function(piGroup, tagRates, var2Probs, hnc_var3, un_counts){
-	# Use observed counts in parameter order: PBT rows, then Unassigned rows.
-	startVals <- list(
-		rep(1, length(hnc_var3) + length(un_counts)),
-		c(as.vector(t(log(hnc_var3 + 0.5))), as.vector(t(log(un_counts + 0.5))))
+	# now MLE estimation of proportions\
+	propsMLE <- optim(par = rep(1, (nrow(hnc_var3) * ncol(hnc_var3)) + (nrow(un_counts) * ncol(un_counts))),
+							fn = PBT_var3_optimllh, gr = PBT_var3_grad,
+							piGroup = piGroup, var2Probs = var2Probs, tagRates = tagRates,
+							hnc_var3 = hnc_var3, un_counts = un_counts,
+							control = list(fnscale = -1, maxit = 1000), method = "BFGS"
 	)
-	fits <- lapply(startVals, function(st){
-		optim(par = st, fn = PBT_var3_optimllh, gr = PBT_var3_grad,
-				piGroup = piGroup, var2Probs = var2Probs, tagRates = tagRates,
-				hnc_var3 = hnc_var3, un_counts = un_counts,
-				control = list(fnscale = -1, maxit = 1000), method = "BFGS"
-		)
-	})
-	# Keep the fit with the highest log-likelihood (first start wins ties).
-	propsMLE <- fits[[which.max(vapply(fits, function(x) x$value, numeric(1)))]]
 	if(propsMLE$convergence != 0) warning("Convergence error in PBT_var3_calc_MLE")
 	# apply softmax to translate into probabilities
 	var3Probs <- matrix(propsMLE$par, nrow = nrow(hnc_var3) + nrow(un_counts), ncol = ncol(hnc_var3), byrow = TRUE)
